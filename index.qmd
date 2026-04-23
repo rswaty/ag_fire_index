@@ -82,20 +82,14 @@ forecast_sf <- read_chunk_layer(
   "docs/data/forecast_chunks/index.geojson",
   c("risk_display", "risk_weekly_max", "risk_index")
 )
-risk_sf <- read_chunk_layer(
-  "docs/data/risk_chunks/index.geojson",
-  c("risk_index", "risk_display", "risk_weekly_max")
-)
 forecast_sf <- clip_to_counties(forecast_sf)
-risk_sf <- clip_to_counties(risk_sf)
 
-if (is.null(forecast_sf) && is.null(risk_sf)) {
-  stop("No chunk layers found for Quarto map.")
+if (is.null(forecast_sf)) {
+  stop("No forecast chunk layer found for Quarto map.")
 }
 
 all_vals <- c(
-  if (!is.null(forecast_sf)) forecast_sf$risk_display else numeric(0),
-  if (!is.null(risk_sf)) risk_sf$risk_display else numeric(0)
+  if (!is.null(forecast_sf)) forecast_sf$risk_display else numeric(0)
 )
 if (length(all_vals) == 0) all_vals <- c(0, 100)
 
@@ -145,35 +139,15 @@ if (!is.null(forecast_sf)) {
     )
 }
 
-if (!is.null(risk_sf)) {
-  m <- m |>
-    addPolygons(
-      data = risk_sf,
-      group = "1 km risk grid (historical snapshot)",
-      color = "#c7c7c7",
-      weight = 0.10,
-      fillColor = ~pal(risk_display),
-      fillOpacity = 0.30,
-      popup = ~paste0(
-        "<b>Cell:</b> ", ifelse(is.na(cell_id), "n/a", cell_id), "<br>",
-        "<b>Target date:</b> ", ifelse(is.na(week_ending), "n/a", week_ending), "<br>",
-        "<b>Risk (display):</b> ", ifelse(is.na(risk_display), "n/a", round(risk_display, 1)), "<br>",
-        "<b>Risk (raw):</b> ", ifelse(is.na(risk_index_raw), "n/a", risk_index_raw)
-      )
-    )
-}
-
 m |>
   addLayersControl(
     overlayGroups = c(
-      "1 km risk grid (historical snapshot)",
       "Next-week forecast grid",
       "County outlines",
       "NDVI (NASA GIBS)"
     ),
     options = layersControlOptions(collapsed = FALSE)
   ) |>
-  hideGroup("1 km risk grid (historical snapshot)") |>
   addLegend(
     "bottomright",
     pal = pal,
@@ -222,7 +196,6 @@ if (!is.null(metrics)) {
 
 ### Layer Meaning
 
-- `1 km risk grid`: historical snapshot layer (retrospective target date conditions).
 - `Next-week forecast grid`: forward-looking projected risk for the selected forecast window.
 - `County outlines`: your `demo_counties.shp` boundaries.
 - `NDVI`: NASA GIBS vegetation-condition backdrop.
