@@ -1,0 +1,8 @@
+feature,coefficient,odds_multiplier
+intercept,-0.29821,0.742145
+lat_norm,-0.101951,0.903074
+lon_norm,2.110414,8.251655
+season_shoulder,-0.19173,0.82553
+is_spring_or_fall,-0.289735,0.748462
+sin_doy,-0.03083,0.96964
+cos_doy,0.046748,1.047858

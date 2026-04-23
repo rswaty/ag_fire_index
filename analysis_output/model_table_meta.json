@@ -1,0 +1,28 @@
+{
+  "input_geojson": "docs/data/historical_fires.geojson",
+  "output_csv": "analysis_output/model_table.csv",
+  "year_range": [
+    2012,
+    2023
+  ],
+  "season_filter": "spring_fall",
+  "positives_before_firms_dedupe": 11899,
+  "positives_after_firms_dedupe": 5558,
+  "controls_per_positive": 1,
+  "total_rows": 11116,
+  "positive_rows": 5558,
+  "control_rows": 5558,
+  "positive_source_breakdown": {
+    "firms": 5558
+  },
+  "synthetic_incidents_included": false,
+  "controls_are_synthetic_training_negatives": true,
+  "control_mode": "hard_spatial",
+  "bbox_wgs84": [
+    -97.6,
+    41.8,
+    -94.9,
+    43.85
+  ],
+  "hard_negative_min_km": 5.0
+}

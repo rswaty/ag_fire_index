@@ -1,0 +1,6 @@
+.Rhistory
+.Rproj.user/
+.quarto/
+.venv/
+__pycache__/
+*.pyc

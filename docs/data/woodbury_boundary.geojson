@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "name": "woodbury_boundary_mock",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "county": "Woodbury",
+        "state": "IA",
+        "source": "Approximate county outline for prototype testing"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-96.640, 42.560],
+            [-96.550, 42.860],
+            [-95.980, 42.850],
+            [-95.900, 42.670],
+            [-95.920, 42.280],
+            [-96.250, 42.190],
+            [-96.570, 42.270],
+            [-96.640, 42.560]
+          ]
+        ]
+      }
+    }
+  ]
+}

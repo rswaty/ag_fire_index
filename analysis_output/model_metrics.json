@@ -1,0 +1,32 @@
+{
+  "input_csv": "analysis_output/model_table.csv",
+  "test_split": "year",
+  "test_split_description": "year>=2021 is test",
+  "test_start_year": 2021,
+  "spatial_test_min_lon": null,
+  "norm_bbox": [
+    -97.6,
+    41.8,
+    -94.9,
+    43.85
+  ],
+  "train_rows": 7680,
+  "test_rows": 3436,
+  "train_positive_rate": 0.5,
+  "test_positive_rate": 0.5,
+  "train_auc": 0.724,
+  "test_auc": 0.7212,
+  "train_logloss": 0.626,
+  "test_logloss": 0.6228,
+  "test_classification_at_0_5": {
+    "threshold": 0.5,
+    "tp": 1125,
+    "fp": 439,
+    "tn": 1279,
+    "fn": 593,
+    "precision": 0.7193,
+    "recall": 0.6548,
+    "f1": 0.6856
+  },
+  "notes": "Logistic model: calendar + location only (no source/FIRMS metadata leakage)."
+}

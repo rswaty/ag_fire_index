@@ -1,0 +1,13 @@
+project:
+  output-dir: docs
+
+format:
+  dashboard:
+    theme: cosmo
+    toc: false
+    css: styles.css
+
+execute:
+  echo: false
+  warning: false
+  message: false

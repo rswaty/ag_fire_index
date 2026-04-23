@@ -1,0 +1,252 @@
+---
+title: "Wildfire Risk Demo (Quarto)"
+subtitle: "NW Iowa + SE South Dakota"
+---
+
+# Model Map {orientation="columns" scrolling="false"}
+
+## Column {width=68%}
+
+```{r setup, include=FALSE}
+library(leaflet)
+library(jsonlite)
+library(sf)
+library(dplyr)
+
+meta_path <- "analysis_output/model_table_meta.json"
+metrics_path <- "analysis_output/model_metrics.json"
+
+meta <- if (file.exists(meta_path)) fromJSON(meta_path) else NULL
+metrics <- if (file.exists(metrics_path)) fromJSON(metrics_path) else NULL
+
+fmt_int <- function(x) {
+  if (is.null(x) || length(x) == 0 || is.na(x)) return("n/a")
+  format(as.integer(round(as.numeric(x))), big.mark = ",", scientific = FALSE)
+}
+```
+
+```{r map, echo=FALSE, warning=FALSE, message=FALSE}
+read_chunk_layer <- function(index_path, risk_col_candidates) {
+  idx <- fromJSON(index_path, simplifyDataFrame = TRUE)
+  rel <- vapply(idx$features$properties$path, identity, character(1))
+  files <- file.path("docs", sub("^\\./", "", rel))
+  files <- files[file.exists(files)]
+  if (length(files) == 0) {
+    return(NULL)
+  }
+  out <- lapply(files, function(p) st_read(p, quiet = TRUE)) |>
+    bind_rows()
+  if (is.na(st_crs(out))) {
+    st_crs(out) <- 4326
+  } else {
+    out <- st_transform(out, 4326)
+  }
+  found_col <- NULL
+  for (nm in risk_col_candidates) {
+    if (nm %in% names(out)) {
+      found_col <- nm
+      break
+    }
+  }
+  if (is.null(found_col)) {
+    out$risk_display <- 0
+  } else {
+    out$risk_display <- as.numeric(out[[found_col]])
+  }
+  out
+}
+
+county_path <- "data/demo_counties.shp"
+if (!file.exists(county_path)) {
+  stop("County shapefile not found at data/demo_counties.shp")
+}
+counties_sf <- st_read(county_path, quiet = TRUE)
+if (is.na(st_crs(counties_sf))) {
+  st_crs(counties_sf) <- 4326
+} else {
+  counties_sf <- st_transform(counties_sf, 4326)
+}
+counties_sf <- st_make_valid(counties_sf)
+county_mask <- st_union(counties_sf)
+county_bbox <- st_bbox(counties_sf)
+
+clip_to_counties <- function(x) {
+  if (is.null(x) || nrow(x) == 0) return(x)
+  x <- st_make_valid(x)
+  x <- suppressWarnings(st_intersection(x, county_mask))
+  if (nrow(x) == 0) return(NULL)
+  x
+}
+
+forecast_sf <- read_chunk_layer(
+  "docs/data/forecast_chunks/index.geojson",
+  c("risk_display", "risk_weekly_max", "risk_index")
+)
+risk_sf <- read_chunk_layer(
+  "docs/data/risk_chunks/index.geojson",
+  c("risk_index", "risk_display", "risk_weekly_max")
+)
+forecast_sf <- clip_to_counties(forecast_sf)
+risk_sf <- clip_to_counties(risk_sf)
+
+if (is.null(forecast_sf) && is.null(risk_sf)) {
+  stop("No chunk layers found for Quarto map.")
+}
+
+all_vals <- c(
+  if (!is.null(forecast_sf)) forecast_sf$risk_display else numeric(0),
+  if (!is.null(risk_sf)) risk_sf$risk_display else numeric(0)
+)
+if (length(all_vals) == 0) all_vals <- c(0, 100)
+
+pal <- colorBin(
+  palette = c("#2b83ba", "#abdda4", "#fdae61", "#d7191c"),
+  bins = c(0, 25, 50, 75, 100),
+  domain = all_vals,
+  right = TRUE
+)
+
+m <- leaflet(options = leafletOptions(zoomControl = TRUE, minZoom = 6, maxZoom = 14)) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  addWMSTiles(
+    baseUrl = "https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi",
+    layers = "MODIS_Terra_NDVI_8Day",
+    options = WMSTileOptions(format = "image/png", transparent = TRUE, opacity = 0.45),
+    group = "NDVI (NASA GIBS)"
+  ) |>
+  addPolylines(
+    data = st_boundary(counties_sf),
+    group = "County outlines",
+    color = "#2f2f2f",
+    weight = 2.0,
+    opacity = 0.85
+  ) |>
+  fitBounds(
+    lng1 = county_bbox[["xmin"]], lat1 = county_bbox[["ymin"]],
+    lng2 = county_bbox[["xmax"]], lat2 = county_bbox[["ymax"]]
+  )
+
+if (!is.null(forecast_sf)) {
+  m <- m |>
+    addPolygons(
+      data = forecast_sf,
+      group = "Next-week forecast grid",
+      color = "#9a9a9a",
+      weight = 0.10,
+      fillColor = ~pal(risk_display),
+      fillOpacity = 0.42,
+      popup = ~paste0(
+        "<b>Cell:</b> ", ifelse(is.na(cell_id), "n/a", cell_id), "<br>",
+        "<b>Forecast:</b> ", ifelse(is.na(forecast_start), "n/a", forecast_start),
+        " to ", ifelse(is.na(forecast_end), "n/a", forecast_end), "<br>",
+        "<b>Risk (display):</b> ", ifelse(is.na(risk_display), "n/a", round(risk_display, 1)), "<br>",
+        "<b>Risk (weekly max):</b> ", ifelse(is.na(risk_weekly_max), "n/a", risk_weekly_max)
+      )
+    )
+}
+
+if (!is.null(risk_sf)) {
+  m <- m |>
+    addPolygons(
+      data = risk_sf,
+      group = "1 km risk grid (historical snapshot)",
+      color = "#c7c7c7",
+      weight = 0.10,
+      fillColor = ~pal(risk_display),
+      fillOpacity = 0.30,
+      popup = ~paste0(
+        "<b>Cell:</b> ", ifelse(is.na(cell_id), "n/a", cell_id), "<br>",
+        "<b>Target date:</b> ", ifelse(is.na(week_ending), "n/a", week_ending), "<br>",
+        "<b>Risk (display):</b> ", ifelse(is.na(risk_display), "n/a", round(risk_display, 1)), "<br>",
+        "<b>Risk (raw):</b> ", ifelse(is.na(risk_index_raw), "n/a", risk_index_raw)
+      )
+    )
+}
+
+m |>
+  addLayersControl(
+    overlayGroups = c(
+      "1 km risk grid (historical snapshot)",
+      "Next-week forecast grid",
+      "County outlines",
+      "NDVI (NASA GIBS)"
+    ),
+    options = layersControlOptions(collapsed = FALSE)
+  ) |>
+  hideGroup("1 km risk grid (historical snapshot)") |>
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = all_vals,
+    title = "Risk legend",
+    opacity = 0.9,
+    labFormat = labelFormat(transform = function(x) round(x))
+  ) |>
+  fitBounds(
+    lng1 = county_bbox[["xmin"]], lat1 = county_bbox[["ymin"]],
+    lng2 = county_bbox[["xmax"]], lat2 = county_bbox[["ymax"]]
+  )
+```
+
+## Column {width=32%}
+
+### Plain-English Process
+
+This tool maps where fire-conducive weather conditions are strongest in your counties.
+
+1. Historical fire records are ingested for the area and date range.
+2. A training table is built with positive fire points and matched non-fire controls.
+3. Weather stress features are computed (hotter, drier, windier, rain deficit = higher risk).
+4. The model is trained and validated with a time holdout.
+5. Forecast weather is converted into a 1 km risk surface and clipped to county boundaries.
+
+### Training Data Summary
+
+```{r training-summary, echo=FALSE, results='asis'}
+if (is.null(meta)) {
+  cat("- Training metadata file not found (`analysis_output/model_table_meta.json`).\n")
+} else {
+  yr <- meta$year_range
+  yr_txt <- if (!is.null(yr) && length(yr) == 2) paste0(yr[[1]], " to ", yr[[2]]) else "n/a"
+  cat("- Training period:", yr_txt, "\n")
+  cat("- Positives after dedupe:", fmt_int(meta$positives_after_firms_dedupe), "\n")
+  cat("- Controls generated:", fmt_int(meta$control_rows), "\n")
+  cat("- Total rows in model table:", fmt_int(meta$total_rows), "\n")
+  cat("- Season filter:", ifelse(is.null(meta$season_filter), "n/a", meta$season_filter), "\n")
+}
+if (!is.null(metrics)) {
+  cat("- Train rows used in latest fit:", fmt_int(metrics$train_rows), "\n")
+  cat("- Test rows used in latest fit:", fmt_int(metrics$test_rows), "\n")
+}
+```
+
+### Layer Meaning
+
+- `1 km risk grid`: historical snapshot layer (retrospective target date conditions).
+- `Next-week forecast grid`: forward-looking projected risk for the selected forecast window.
+- `County outlines`: your `demo_counties.shp` boundaries.
+- `NDVI`: NASA GIBS vegetation-condition backdrop.
+
+### Methods and Weighting
+
+Weather score weights:
+
+- temperature stress = `0.32`
+- humidity stress = `0.23`
+- wind stress = `0.25`
+- rain-deficit stress = `0.20`
+
+Display uses a regional linear stretch between p05 and p95 (not rank remapping).
+
+### Input Data Sources
+
+- [Local area boundary (your shapefile): `data/demo_counties.shp`](https://desktop.arcgis.com/en/arcmap/latest/manage-data/shapefiles/what-is-a-shapefile.htm)
+- [Open-Meteo Archive and Forecast APIs (weather inputs)](https://open-meteo.com/en/docs)
+- [NASA GIBS MODIS Terra NDVI 8-day layer (vegetation backdrop)](https://nasa-gibs.github.io/gibs-api-docs/)
+- [NASA FIRMS active fire detections (historical fire input)](https://firms.modaps.eosdis.nasa.gov/)
+- [NIFC historic wildfires source](https://data-nifc.opendata.arcgis.com/)
+- [NWS reference products for operational cross-checking](https://www.weather.gov/)
+
+# About {orientation="columns" scrolling="false"}
+
+This Quarto view is presentation-only and does not rerun model training or generation scripts.

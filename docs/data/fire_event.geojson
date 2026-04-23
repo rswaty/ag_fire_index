@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "name": "woodbury_fire_event",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Woodbury County Reported Fire",
+        "date": "2026-03-28",
+        "note": "Prototype reference marker for local validation."
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-96.250, 42.420]
+      }
+    }
+  ]
+}
